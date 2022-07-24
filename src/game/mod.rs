@@ -1,9 +1,12 @@
 use bevy::core::FixedTimestep;
+
 use bevy::prelude::*;
 use rand::prelude::random;
 
 use crate::constants::*;
 use crate::game::input::{InputDirection, InputPlugin, InputValue};
+use crate::resources::{EatingSound, GameOverSound};
+use crate::GameState;
 
 const ARENA_WIDTH: u32 = 15;
 const ARENA_HEIGHT: u32 = 15;
@@ -19,12 +22,16 @@ pub struct OnGameScreen;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system_set(SystemSet::new().with_system(setup))
-            .add_plugin(InputPlugin)
+        app.add_plugin(InputPlugin)
             .add_event::<EatEvent>()
             .add_event::<DeathEvent>()
             .add_system_set(
-                SystemSet::new()
+                SystemSet::on_enter(GameState::Game)
+                    .with_system(setup)
+                    .with_system(reset_game),
+            )
+            .add_system_set(
+                SystemSet::on_update(GameState::Game)
                     .with_run_criteria(FixedTimestep::step(TIME_STEP))
                     .with_system(fruit_spawner)
                     .with_system(snake_movement)
@@ -76,10 +83,6 @@ impl Default for LastTailPosition {
     }
 }
 
-struct EatingSound(Handle<AudioSource>);
-
-struct GameOverSound(Handle<AudioSource>);
-
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 struct Position {
     x: i32,
@@ -101,17 +104,8 @@ impl Size {
     }
 }
 
-fn setup(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut segments: ResMut<SnakeSegments>,
-) {
+fn setup(mut commands: Commands, mut segments: ResMut<SnakeSegments>) {
     info!("setting up game");
-    // sound
-    let eating_sound = asset_server.load("sounds/eat.ogg");
-    commands.insert_resource(EatingSound(eating_sound));
-    let game_over_sound = asset_server.load("sounds/game_over.ogg");
-    commands.insert_resource(GameOverSound(game_over_sound));
 
     // snake
     *segments = SnakeSegments(vec![
@@ -134,6 +128,11 @@ fn setup(
     ]);
 }
 
+fn reset_game(mut game_is_over: ResMut<GameIsOver>, mut input: ResMut<InputValue>) {
+    game_is_over.0 = false;
+    input.reset();
+}
+
 fn snake_movement(
     mut input: ResMut<InputValue>,
     segments: ResMut<SnakeSegments>,
@@ -142,7 +141,7 @@ fn snake_movement(
     mut death_writer: EventWriter<DeathEvent>,
     mut game_is_over: ResMut<GameIsOver>,
 ) {
-    debug!("snake movement");
+    trace!("snake movement");
     if segments.0.is_empty() || game_is_over.0 {
         return;
     }
@@ -220,12 +219,14 @@ fn check_death(
     audio: Res<Audio>,
     sound: Res<GameOverSound>,
     mut snake_query: Query<&mut Sprite, With<SnakePart>>,
+    mut game_state: ResMut<State<GameState>>,
 ) {
     if death_event.iter().count() > 0 {
         audio.play(sound.0.clone());
         for mut segment in snake_query.iter_mut() {
             segment.color = DEAD_SNAKE_COLOR;
         }
+        game_state.set(GameState::GameOver).unwrap();
     }
 }
 

@@ -54,6 +54,11 @@ impl InputValue {
         }
         ret
     }
+    pub fn reset(&mut self) {
+        self.current = InputDirection::Right;
+        self.queue.clear();
+        self.visited = false;
+    }
     fn push(&mut self, val: InputDirection) {
         if self.visited {
             if self.current.complement() == val {
