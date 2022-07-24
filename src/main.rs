@@ -20,7 +20,7 @@ pub enum GameState {
 fn main() {
     App::new()
         .insert_resource(LogSettings {
-            level: Level::DEBUG,
+            level: Level::INFO,
             filter: "wgpu=error,bevy_render=info,bevy_ecs=debug".to_string(),
         })
         .insert_resource(WindowDescriptor {
